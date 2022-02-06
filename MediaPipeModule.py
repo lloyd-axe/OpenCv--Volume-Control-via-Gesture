@@ -4,74 +4,110 @@ import mediapipe as mp
 
 class Tracker:
     def __init__(
-        self,
-        detectionCon = 0.5,
-        trackingCon = 0.5,):
-        self.holistic = mp.solutions.holistic
-        self.hands = mp.solutions.hands
-        self.drawing = mp.solutions.drawing_utils
-        self.holistic_model = self.holistic.Holistic(min_detection_confidence = detectionCon,min_tracking_confidence = trackingCon)
-    
-    def Detect(
-        self,
-        frame,
-        color = cv.COLOR_BGR2RGB):
-        return self.holistic_model.process(cv.cvtColor(frame, color))
-
-    def DetectHands(
+        self, 
+        detectConf = 0.5, 
+        trackingConf = 0.5):
+        self.mp_drawing = mp.solutions.drawing_utils
+        #Holistic
+        self.mp_holistic = mp.solutions.holistic
+        self.holistic_model = self.mp_holistic.Holistic(
+            min_detection_confidence = detectConf, 
+            min_tracking_confidence = trackingConf)
+        
+    #Detection - returns mediapipe holistic model landmarks
+    def Detect( 
         self, 
         frame, 
-        color=cv.COLOR_BGR2RGB):
-        hand = self.hands.Hands()
-        return hand.process(cv.cvtColor(frame, color))
-
-    def DrawLandMarks(
-        self,
-        frame,
-        results,
-        head = True,
-        pose = True,
-        lh = True,
-        rh = True):
-        if head:
-            self.drawing.draw_landmarks(frame,
-                                      results.face_landmarks,
-                                      self.holistic.FACEMESH_TESSELATION,
-                                      self.drawing.DrawingSpec(color=(80,110,10), thickness=1, circle_radius=1),
-                                      self.drawing.DrawingSpec(color=(80, 255, 121), thickness=1, circle_radius=1))
-        if pose:
-            self.drawing.draw_landmarks(frame, 
-                                      results.pose_landmarks, 
-                                      self.holistic.POSE_CONNECTIONS)
-        if lh:
-            self.drawing.draw_landmarks(frame, 
-                                      results.left_hand_landmarks, 
-                                      self.holistic.HAND_CONNECTIONS)
-        if rh:
-            self.drawing.draw_landmarks(frame, 
-                                      results.right_hand_landmarks, 
-                                      self.holistic.HAND_CONNECTIONS)
-
-    def ExtractKeyPoints(
+        color = cv.COLOR_BGR2RGB):
+        return self.holistic_model.process(cv.cvtColor(frame, color))
+    
+    #Reformat holistic model landmarks into a dictionary for easy access
+    def GetPositions(
         self, 
         results):
-        keyPoints = {'pose': [], 'head': [], 'left': [], 'right': []}
-        keyPoints['pose'] = np.array([[res.x, res.y, res.z, res.visibility] for res in results.pose_landmarks.landmark]).flatten() if results.pose_landmarks else np.zeros(132*4)
-        keyPoints['head'] = np.array([[res.x, res.y, res.z] for res in results.face_landmarks.landmark]).flatten() if results.face_landmarks else np.zeros(468*3)
-        keyPoints['left'] = np.array([[res.x, res.y, res.z] for res in results.left_hand_landmarks.landmark]).flatten() if results.left_hand_landmarks else np.zeros(21*3)
-        keyPoints['right'] = np.array([[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark]).flatten() if results.right_hand_landmarks else np.zeros(21*3)
-        return np.concatenate(keyPoints)
-    
-    def FindPositions(
-        self,
-        results):
-        landmarks = {'pose': [], 'head': [], 'left': [], 'right': []}
-        landmarks['pose'] = [[res.x, res.y, res.z, res.visibility] for res in results.pose_landmarks.landmark] if results.pose_landmarks else None
-        landmarks['head'] = [[res.x, res.y, res.z] for res in results.face_landmarks.landmark] if results.face_landmarks else None
-        landmarks['left'] = [[res.x, res.y, res.z] for res in results.left_hand_landmarks.landmark] if results.left_hand_landmarks else None
-        landmarks['right'] = [[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark] if results.right_hand_landmarks else None
+        landmarks = {'pose': [], 'face': [], 'left': [], 'right': []}
+        landmarks['pose'] = [[res.x, res.y, res.z, res.visibility] for res in results.pose_landmarks.landmark] if results.pose_landmarks else np.zeros((33,4))
+        landmarks['face'] = [[res.x, res.y, res.z] for res in results.face_landmarks.landmark] if results.face_landmarks else np.zeros((468,3))
+        landmarks['left'] = [[res.x, res.y, res.z] for res in results.left_hand_landmarks.landmark] if results.left_hand_landmarks else np.zeros((21,3))
+        landmarks['right'] = [[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark] if results.right_hand_landmarks else np.zeros((21,3))
         return landmarks
-
+    
+    #Returns a flat array of specified keypoints from landmarks
+    def GetKeypointsData(self, results, noFace = False, noPose = False, posePoints = []):
+        landmarks = self.GetPositions(results)
+        if noFace:
+            landmarks.pop('face')
+        if noPose:
+            landmarks.pop('pose')
+        if posePoints != []:
+            landmarks['pose'] = [landmarks['pose'][p] for p in posePoints]
+        return np.concatenate([np.array(part).flatten() for part in landmarks.values()])
+    
+    #VISUALS
+    def DrawLandmarks(
+        self, 
+        frame, 
+        results,
+        pose = True, 
+        face = True, 
+        leftHand = True, 
+        rightHand = True, 
+        color = ((0,0,255), (255,255,255)),
+        thickness = (1,1),
+        radius = (1,1)):
+        if pose:
+            self.mp_drawing.draw_landmarks(
+                frame,
+                results.pose_landmarks,
+                self.mp_holistic.POSE_CONNECTIONS,
+                self.mp_drawing.DrawingSpec(
+                color = color[0], 
+                thickness = thickness[0], 
+                circle_radius = radius[0]),
+                self.mp_drawing.DrawingSpec(
+                color = color[1], 
+                thickness = thickness[1], 
+                circle_radius = radius[1]))
+        if face:
+            self.mp_drawing.draw_landmarks(
+                frame,
+                results.face_landmarks,
+                self.mp_holistic.FACEMESH_TESSELATION,
+                self.mp_drawing.DrawingSpec(
+                color = color[0], 
+                thickness = thickness[0], 
+                circle_radius = radius[0]),
+                self.mp_drawing.DrawingSpec(
+                color = color[1], 
+                thickness = thickness[1], 
+                circle_radius = radius[1]))
+        if leftHand:
+            self.mp_drawing.draw_landmarks(
+                frame,
+                results.left_hand_landmarks,
+                self.mp_holistic.HAND_CONNECTIONS,
+                self.mp_drawing.DrawingSpec(
+                color = color[0], 
+                thickness = thickness[0], 
+                circle_radius = radius[0]),
+                self.mp_drawing.DrawingSpec(
+                color = color[1], 
+                thickness = thickness[1], 
+                circle_radius = radius[1]))
+        if rightHand:
+            self.mp_drawing.draw_landmarks(
+                frame,
+                results.right_hand_landmarks,
+                self.mp_holistic.HAND_CONNECTIONS,
+                self.mp_drawing.DrawingSpec(
+                color = color[0], 
+                thickness = thickness[0], 
+                circle_radius = radius[0]),
+                self.mp_drawing.DrawingSpec(
+                color = color[1], 
+                thickness = thickness[1], 
+                circle_radius = radius[1]))
+            
     def CheckPosition(
         self, 
         frame, 
@@ -80,3 +116,5 @@ class Tracker:
         color = (0,255,0)):
         for pos in positions:
             cv.circle(frame, (pos[0],pos[1]), size, color, cv.FILLED)
+
+            
