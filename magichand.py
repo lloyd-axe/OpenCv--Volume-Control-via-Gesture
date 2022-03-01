@@ -15,7 +15,7 @@ This version will only recognize the user's right hand.
 Planning to add flexibility in the options in the future versions.
 ------------------------------------------------------------
 '''
-class magichands:
+class magichand:
     def __init__(self,
         detect_conf = 0.5, 
         tracking_conf = 0.5):
@@ -94,5 +94,5 @@ class magichands:
 
 # -------------------------TEST-------------------------
 if __name__ == "__main__":
-    mh = magichands()
+    mh = magichand()
     mh.activate()
